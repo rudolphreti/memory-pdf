@@ -8,11 +8,7 @@ import {
   CardContent,
   CardMedia,
   Container,
-  FormControl,
   IconButton,
-  InputLabel,
-  MenuItem,
-  Select,
   Slider,
   Stack,
   Step,
@@ -41,21 +37,19 @@ import {
   saveProject,
 } from "./db";
 
-const layoutOptions: LayoutOption[] = [4, 6, 8];
 const acceptedTypes = ["image/jpeg", "image/png", "image/webp"];
-const steps = ["Bilder", "Zuschneiden", "Layout & PDF"];
+const steps = ["Bilder", "Zuschneiden", "PDF"];
 const defaultCrop: ImageCrop = { x: 0, y: 0, zoom: 1, rotation: 0 };
 const dpi = 300;
 const a4WidthMm = 210;
 const a4HeightMm = 297;
-const marginMm = 10;
-const gutterMm = 4;
+const cardSizeMm = 99;
+const stripWidthMm = 12;
+const layoutRows = 3;
+const layoutCols = 2;
+const cardsPerPage = layoutRows * layoutCols;
 
-const layoutConfig: Record<LayoutOption, { rows: number; cols: number }> = {
-  4: { rows: 2, cols: 2 },
-  6: { rows: 3, cols: 2 },
-  8: { rows: 4, cols: 2 },
-};
+const layoutValue: LayoutOption = 6;
 
 function createEmptyProject(): Project {
   return {
@@ -63,7 +57,7 @@ function createEmptyProject(): Project {
     name: "Neues Projekt",
     createdAt: new Date().toISOString(),
     note: "",
-    layout: 4,
+    layout: layoutValue,
     images: [],
   };
 }
@@ -373,14 +367,6 @@ export default function App() {
     setProject({ ...project, note: value });
   };
 
-  const handleLayoutChange = (value: LayoutOption) => {
-    if (!project) {
-      return;
-    }
-
-    setProject({ ...project, layout: value });
-  };
-
   const handleAddImages = (files: FileList | null) => {
     if (!project || !files) {
       return;
@@ -471,7 +457,7 @@ export default function App() {
       name: project.name,
       createdAt: project.createdAt,
       note: project.note,
-      layout: project.layout,
+      layout: layoutValue,
       images,
     };
 
@@ -510,7 +496,7 @@ export default function App() {
       name: imported.name ?? "Importiertes Projekt",
       createdAt: imported.createdAt ?? new Date().toISOString(),
       note: imported.note ?? "",
-      layout: imported.layout ?? 4,
+      layout: layoutValue,
       images,
     };
 
@@ -530,38 +516,25 @@ export default function App() {
 
     setIsExportingPdf(true);
     try {
-      const { rows, cols } = layoutConfig[project.layout];
-      const availableWidth = a4WidthMm - 2 * marginMm - gutterMm * (cols - 1);
-      const availableHeight =
-        a4HeightMm - 2 * marginMm - gutterMm * (rows - 1);
-      const cellWidth = availableWidth / cols;
-      const cellHeight = availableHeight / rows;
-      const cardSizeMm = Math.min(cellWidth, cellHeight);
       const cardSizePx = mmToPx(cardSizeMm);
 
       const pairedImages = project.images.flatMap((image) => [image, image]);
       const pdfDoc = await PDFDocument.create();
 
-      for (let index = 0; index < pairedImages.length; index += project.layout) {
+      for (let index = 0; index < pairedImages.length; index += cardsPerPage) {
         const page = pdfDoc.addPage([
           mmToPt(a4WidthMm),
           mmToPt(a4HeightMm),
         ]);
-        const slice = pairedImages.slice(index, index + project.layout);
+        const slice = pairedImages.slice(index, index + cardsPerPage);
 
         for (let cardIndex = 0; cardIndex < slice.length; cardIndex += 1) {
           const image = slice[cardIndex];
-          const row = Math.floor(cardIndex / cols);
-          const col = cardIndex % cols;
+          const row = Math.floor(cardIndex / layoutCols);
+          const col = cardIndex % layoutCols;
 
-          const xMm =
-            marginMm +
-            col * (cellWidth + gutterMm) +
-            (cellWidth - cardSizeMm) / 2;
-          const yMm =
-            marginMm +
-            (rows - 1 - row) * (cellHeight + gutterMm) +
-            (cellHeight - cardSizeMm) / 2;
+          const xMm = col * cardSizeMm;
+          const yMm = (layoutRows - 1 - row) * cardSizeMm;
 
           const croppedBlob = await renderCroppedImage(image, cardSizePx);
           const imageBytes = await croppedBlob.arrayBuffer();
@@ -936,30 +909,14 @@ export default function App() {
             <Card variant="outlined">
               <CardContent>
                 <Stack spacing={3}>
-                  <Typography variant="h6">Layout &amp; PDF</Typography>
+                  <Typography variant="h6">PDF</Typography>
                   <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                    <FormControl fullWidth>
-                      <InputLabel id="layout-label">
-                        Layout (Karten pro Seite)
-                      </InputLabel>
-                      <Select
-                        labelId="layout-label"
-                        value={project.layout}
-                        label="Layout (Karten pro Seite)"
-                        onChange={(event) =>
-                          handleLayoutChange(
-                            event.target.value as LayoutOption
-                          )
-                        }
-                      >
-                        {layoutOptions.map((option) => (
-                          <MenuItem key={option} value={option}>
-                            {option} Karten ({layoutConfig[option].cols}x
-                            {layoutConfig[option].rows})
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                    <TextField
+                      label="Layout (fix)"
+                      value={`6 Karten (2x3) + Streifen ${stripWidthMm}mm`}
+                      InputProps={{ readOnly: true }}
+                      fullWidth
+                    />
                     <TextField
                       label="Bilder im Projekt"
                       value={project.images.length}
@@ -978,7 +935,8 @@ export default function App() {
                         : "PDF exportieren"}
                     </Button>
                     <Typography variant="body2" color="text.secondary">
-                      A4 Hochformat · Ränder 10mm · Gutter 4mm · 300 DPI
+                      A4 210×297mm · 6×99mm Karten · Streifen 12mm · 300 DPI ·
+                      Schnittlinien bei 99mm/198mm (vertikal) und 99mm (horizontal)
                     </Typography>
                   </Stack>
                   {project.images.length > 0 && (
