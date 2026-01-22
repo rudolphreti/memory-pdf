@@ -14,6 +14,14 @@ export interface ImageCrop {
   y: number;
   zoom: number;
   rotation: number;
+  cropAreaPixels?: CropAreaPixels;
+}
+
+export interface CropAreaPixels {
+  width: number;
+  height: number;
+  x: number;
+  y: number;
 }
 
 export interface Project {
