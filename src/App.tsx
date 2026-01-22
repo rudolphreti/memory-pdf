@@ -178,7 +178,11 @@ export default function App() {
     return project.images.find((image) => image.id === selectedImageId) ?? null;
   }, [project, selectedImageId]);
 
-  const maxStep = project.images.length === 0 ? 0 : steps.length - 1;
+  const maxStep = project
+    ? project.images.length === 0
+      ? 0
+      : steps.length - 1
+    : 0;
 
   const handleCreateNew = () => {
     const nextProject = createEmptyProject();
