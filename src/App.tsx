@@ -13,7 +13,11 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Slider,
   Stack,
+  Step,
+  StepLabel,
+  Stepper,
   TextField,
   Toolbar,
   Typography,
@@ -21,7 +25,8 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import NoteAddIcon from "@mui/icons-material/NoteAdd";
-import type { LayoutOption, Project, ProjectImage } from "./types";
+import Cropper from "react-easy-crop";
+import type { ImageCrop, LayoutOption, Project, ProjectImage } from "./types";
 import {
   getLastProjectId,
   getMostRecentProject,
@@ -31,6 +36,8 @@ import {
 
 const layoutOptions: LayoutOption[] = [4, 6, 8];
 const acceptedTypes = ["image/jpeg", "image/png", "image/webp"];
+const steps = ["Bilder", "Zuschneiden", "Layout & PDF"];
+const defaultCrop: ImageCrop = { x: 0, y: 0, zoom: 1, rotation: 0 };
 
 function createEmptyProject(): Project {
   return {
@@ -58,6 +65,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const previewUrlsRef = useRef<Record<string, string>>({});
+  const [activeStep, setActiveStep] = useState(0);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -122,6 +131,37 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!project) {
+      return;
+    }
+
+    if (!selectedImageId && project.images.length > 0) {
+      setSelectedImageId(project.images[0].id);
+      return;
+    }
+
+    if (selectedImageId) {
+      const stillExists = project.images.some(
+        (image) => image.id === selectedImageId
+      );
+      if (!stillExists) {
+        setSelectedImageId(project.images[0]?.id ?? null);
+      }
+    }
+  }, [project, selectedImageId]);
+
+  useEffect(() => {
+    if (!project) {
+      return;
+    }
+
+    const maxStep = project.images.length === 0 ? 0 : steps.length - 1;
+    if (activeStep > maxStep) {
+      setActiveStep(maxStep);
+    }
+  }, [project, activeStep]);
+
   const createdAtLabel = useMemo(() => {
     if (!project) {
       return "";
@@ -129,6 +169,16 @@ export default function App() {
 
     return formatDate(project.createdAt);
   }, [project]);
+
+  const selectedImage = useMemo(() => {
+    if (!project || !selectedImageId) {
+      return null;
+    }
+
+    return project.images.find((image) => image.id === selectedImageId) ?? null;
+  }, [project, selectedImageId]);
+
+  const maxStep = project.images.length === 0 ? 0 : steps.length - 1;
 
   const handleCreateNew = () => {
     const nextProject = createEmptyProject();
@@ -172,6 +222,7 @@ export default function App() {
         type: file.type,
         size: file.size,
         blob: file,
+        crop: { ...defaultCrop },
       }));
 
     if (nextImages.length === 0) {
@@ -193,6 +244,30 @@ export default function App() {
       ...project,
       images: project.images.filter((image) => image.id !== id),
     });
+  };
+
+  const handleCropUpdate = (id: string, cropUpdate: Partial<ImageCrop>) => {
+    if (!project) {
+      return;
+    }
+
+    setProject({
+      ...project,
+      images: project.images.map((image) =>
+        image.id === id
+          ? { ...image, crop: { ...defaultCrop, ...image.crop, ...cropUpdate } }
+          : image
+      ),
+    });
+  };
+
+  const handleStepChange = (nextStep: number) => {
+    if (!project) {
+      return;
+    }
+
+    const maxStep = project.images.length === 0 ? 0 : steps.length - 1;
+    setActiveStep(Math.min(Math.max(nextStep, 0), maxStep));
   };
 
   if (isLoading || !project) {
@@ -225,6 +300,35 @@ export default function App() {
         <Stack spacing={4}>
           <Card variant="outlined">
             <CardContent>
+              <Stepper activeStep={activeStep} alternativeLabel>
+                {steps.map((label) => (
+                  <Step key={label}>
+                    <StepLabel>{label}</StepLabel>
+                  </Step>
+                ))}
+              </Stepper>
+            </CardContent>
+            <CardActions sx={{ px: 3, pb: 2, justifyContent: "space-between" }}>
+              <Button
+                variant="outlined"
+                onClick={() => handleStepChange(activeStep - 1)}
+                disabled={activeStep === 0}
+              >
+                Zurück
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => handleStepChange(activeStep + 1)}
+                disabled={activeStep >= maxStep}
+              >
+                Weiter
+              </Button>
+            </CardActions>
+          </Card>
+
+          {activeStep === 0 && (
+          <Card variant="outlined">
+            <CardContent>
               <Stack spacing={3}>
                 <TextField
                   label="Projektname"
@@ -247,23 +351,12 @@ export default function App() {
                     InputProps={{ readOnly: true }}
                     fullWidth
                   />
-                  <FormControl fullWidth>
-                    <InputLabel id="layout-label">Layout (Spalten)</InputLabel>
-                    <Select
-                      labelId="layout-label"
-                      value={project.layout}
-                      label="Layout (Spalten)"
-                      onChange={(event) =>
-                        handleLayoutChange(event.target.value as LayoutOption)
-                      }
-                    >
-                      {layoutOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <TextField
+                    label="Bildanzahl"
+                    value={project.images.length}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                  />
                 </Stack>
               </Stack>
             </CardContent>
@@ -290,57 +383,279 @@ export default function App() {
               </Typography>
             </CardActions>
           </Card>
+          )}
 
-          <Card variant="outlined">
-            <CardContent>
-              <Stack spacing={2}>
-                <Typography variant="h6">
-                  Bildübersicht ({project.images.length})
-                </Typography>
-                {project.images.length === 0 ? (
-                  <Typography variant="body1" color="text.secondary">
-                    Noch keine Bilder. Füge oben Dateien hinzu.
+          {activeStep === 0 && (
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={2}>
+                  <Typography variant="h6">
+                    Bildübersicht ({project.images.length})
                   </Typography>
-                ) : (
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: `repeat(${project.layout}, minmax(0, 1fr))`,
-                      gap: 2,
-                    }}
+                  {project.images.length === 0 ? (
+                    <Typography variant="body1" color="text.secondary">
+                      Noch keine Bilder. Füge oben Dateien hinzu.
+                    </Typography>
+                  ) : (
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: `repeat(${project.layout}, minmax(0, 1fr))`,
+                        gap: 2,
+                      }}
+                    >
+                      {project.images.map((image) => (
+                        <Card key={image.id} variant="outlined">
+                          <CardMedia
+                            component="img"
+                            height="140"
+                            image={previewUrls[image.id]}
+                            alt={image.name}
+                            sx={{ objectFit: "cover" }}
+                          />
+                          <CardContent>
+                            <Typography variant="subtitle2" noWrap>
+                              {image.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {(image.size / 1024).toFixed(1)} KB
+                            </Typography>
+                          </CardContent>
+                          <CardActions sx={{ justifyContent: "flex-end" }}>
+                            <IconButton
+                              aria-label="Bild entfernen"
+                              onClick={() => handleRemoveImage(image.id)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </CardActions>
+                        </Card>
+                      ))}
+                    </Box>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeStep === 1 && (
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={3}>
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={3}
+                    alignItems="stretch"
                   >
-                    {project.images.map((image) => (
-                      <Card key={image.id} variant="outlined">
-                        <CardMedia
-                          component="img"
-                          height="140"
-                          image={previewUrls[image.id]}
-                          alt={image.name}
-                          sx={{ objectFit: "cover" }}
-                        />
-                        <CardContent>
-                          <Typography variant="subtitle2" noWrap>
-                            {image.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {(image.size / 1024).toFixed(1)} KB
-                          </Typography>
-                        </CardContent>
-                        <CardActions sx={{ justifyContent: "flex-end" }}>
-                          <IconButton
-                            aria-label="Bild entfernen"
-                            onClick={() => handleRemoveImage(image.id)}
+                    <Stack spacing={2} sx={{ minWidth: 240 }}>
+                      <Typography variant="h6">Bilder auswählen</Typography>
+                      {project.images.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">
+                          Füge zuerst Bilder hinzu.
+                        </Typography>
+                      ) : (
+                        <Stack spacing={1}>
+                          {project.images.map((image) => (
+                            <Button
+                              key={image.id}
+                              variant={
+                                image.id === selectedImageId
+                                  ? "contained"
+                                  : "outlined"
+                              }
+                              onClick={() => setSelectedImageId(image.id)}
+                              sx={{ justifyContent: "flex-start", gap: 1 }}
+                            >
+                              <Box
+                                component="img"
+                                src={previewUrls[image.id]}
+                                alt={image.name}
+                                sx={{
+                                  width: 48,
+                                  height: 48,
+                                  objectFit: "cover",
+                                  borderRadius: 1,
+                                }}
+                              />
+                              <Typography variant="body2" noWrap>
+                                {image.name}
+                              </Typography>
+                            </Button>
+                          ))}
+                        </Stack>
+                      )}
+                    </Stack>
+
+                    <Stack spacing={2} sx={{ flex: 1 }}>
+                      <Typography variant="h6">Zuschneiden (Quadrat)</Typography>
+                      {selectedImage ? (
+                        <>
+                          <Box
+                            sx={{
+                              position: "relative",
+                              width: "100%",
+                              maxWidth: 520,
+                              aspectRatio: "1 / 1",
+                              bgcolor: "grey.900",
+                              borderRadius: 2,
+                              overflow: "hidden",
+                            }}
                           >
-                            <DeleteIcon />
-                          </IconButton>
-                        </CardActions>
-                      </Card>
-                    ))}
-                  </Box>
-                )}
-              </Stack>
-            </CardContent>
-          </Card>
+                            <Cropper
+                              image={previewUrls[selectedImage.id]}
+                              crop={{
+                                x: selectedImage.crop?.x ?? defaultCrop.x,
+                                y: selectedImage.crop?.y ?? defaultCrop.y,
+                              }}
+                              zoom={selectedImage.crop?.zoom ?? defaultCrop.zoom}
+                              rotation={
+                                selectedImage.crop?.rotation ??
+                                defaultCrop.rotation
+                              }
+                              aspect={1}
+                              onCropChange={(crop) =>
+                                handleCropUpdate(selectedImage.id, crop)
+                              }
+                              onZoomChange={(zoom) =>
+                                handleCropUpdate(selectedImage.id, { zoom })
+                              }
+                              onRotationChange={(rotation) =>
+                                handleCropUpdate(selectedImage.id, { rotation })
+                              }
+                            />
+                          </Box>
+                          <Stack spacing={2} sx={{ maxWidth: 520 }}>
+                            <Box>
+                              <Typography gutterBottom>
+                                Zoom (
+                                {(
+                                  selectedImage.crop?.zoom ?? defaultCrop.zoom
+                                ).toFixed(2)}
+                                x)
+                              </Typography>
+                              <Slider
+                                min={1}
+                                max={3}
+                                step={0.05}
+                                value={
+                                  selectedImage.crop?.zoom ?? defaultCrop.zoom
+                                }
+                                onChange={(_, value) =>
+                                  handleCropUpdate(selectedImage.id, {
+                                    zoom: value as number,
+                                  })
+                                }
+                              />
+                            </Box>
+                            <Box>
+                              <Typography gutterBottom>
+                                Rotation (
+                                {selectedImage.crop?.rotation ??
+                                  defaultCrop.rotation}
+                                °)
+                              </Typography>
+                              <Slider
+                                min={-180}
+                                max={180}
+                                step={1}
+                                value={
+                                  selectedImage.crop?.rotation ??
+                                  defaultCrop.rotation
+                                }
+                                onChange={(_, value) =>
+                                  handleCropUpdate(selectedImage.id, {
+                                    rotation: value as number,
+                                  })
+                                }
+                              />
+                            </Box>
+                          </Stack>
+                        </>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          Wähle links ein Bild aus, um den Zuschnitt zu
+                          bearbeiten.
+                        </Typography>
+                      )}
+                    </Stack>
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeStep === 2 && (
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={3}>
+                  <Typography variant="h6">Layout &amp; PDF</Typography>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <FormControl fullWidth>
+                      <InputLabel id="layout-label">
+                        Layout (Spalten)
+                      </InputLabel>
+                      <Select
+                        labelId="layout-label"
+                        value={project.layout}
+                        label="Layout (Spalten)"
+                        onChange={(event) =>
+                          handleLayoutChange(
+                            event.target.value as LayoutOption
+                          )
+                        }
+                      >
+                        {layoutOptions.map((option) => (
+                          <MenuItem key={option} value={option}>
+                            {option}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <TextField
+                      label="Bilder im Projekt"
+                      value={project.images.length}
+                      InputProps={{ readOnly: true }}
+                      fullWidth
+                    />
+                  </Stack>
+                  <Typography variant="body1" color="text.secondary">
+                    PDF-Erstellung folgt in einem späteren Schritt. Der aktuelle
+                    Fokus liegt auf der Bildauswahl und dem quadratischen
+                    Zuschnitt.
+                  </Typography>
+                  {project.images.length > 0 && (
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: `repeat(${project.layout}, minmax(0, 1fr))`,
+                        gap: 2,
+                      }}
+                    >
+                      {project.images.map((image) => (
+                        <Card key={image.id} variant="outlined">
+                          <CardMedia
+                            component="img"
+                            height="120"
+                            image={previewUrls[image.id]}
+                            alt={image.name}
+                            sx={{ objectFit: "cover" }}
+                          />
+                          <CardContent>
+                            <Typography variant="subtitle2" noWrap>
+                              {image.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Zuschnitt gespeichert
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Box>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
         </Stack>
       </Container>
     </Box>
