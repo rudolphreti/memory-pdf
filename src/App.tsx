@@ -8,7 +8,11 @@ import {
   CardContent,
   CardMedia,
   Container,
+  FormControl,
+  InputLabel,
   IconButton,
+  MenuItem,
+  Select,
   Slider,
   Stack,
   Step,
@@ -41,15 +45,44 @@ const acceptedTypes = ["image/jpeg", "image/png", "image/webp"];
 const steps = ["Bilder", "Zuschneiden", "PDF"];
 const defaultCrop: ImageCrop = { x: 0, y: 0, zoom: 1, rotation: 0 };
 const dpi = 300;
-const a4WidthMm = 210;
-const a4HeightMm = 297;
-const cardSizeMm = 99;
-const stripWidthMm = 12;
-const layoutRows = 3;
-const layoutCols = 2;
-const cardsPerPage = layoutRows * layoutCols;
-
 const layoutValue: LayoutOption = 6;
+
+const layoutConfig: Record<LayoutOption, {
+  label: string;
+  pageWidthMm: number;
+  pageHeightMm: number;
+  cardSizeMm: number;
+  rows: number;
+  cols: number;
+  stripWidthMm: number;
+}> = {
+  6: {
+    label: "6 Karten (2x3) + Streifen 12mm",
+    pageWidthMm: 210,
+    pageHeightMm: 297,
+    cardSizeMm: 99,
+    rows: 3,
+    cols: 2,
+    stripWidthMm: 12,
+  },
+  12: {
+    label: "12 Karten (4x3) A4 quer + Streifen 17mm",
+    pageWidthMm: 297,
+    pageHeightMm: 210,
+    cardSizeMm: 70,
+    rows: 3,
+    cols: 4,
+    stripWidthMm: 17,
+  },
+};
+
+const layoutOptions = Object.keys(layoutConfig).map((value) =>
+  Number(value)
+) as LayoutOption[];
+
+function isLayoutOption(value: unknown): value is LayoutOption {
+  return layoutOptions.includes(value as LayoutOption);
+}
 
 function createEmptyProject(): Project {
   return {
@@ -340,6 +373,14 @@ export default function App() {
     return project.images.find((image) => image.id === selectedImageId) ?? null;
   }, [project, selectedImageId]);
 
+  const selectedLayout = useMemo(() => {
+    if (!project) {
+      return layoutConfig[layoutValue];
+    }
+
+    return layoutConfig[project.layout];
+  }, [project]);
+
   const maxStep = project
     ? project.images.length === 0
       ? 0
@@ -435,6 +476,14 @@ export default function App() {
     setActiveStep(Math.min(Math.max(nextStep, 0), maxStep));
   };
 
+  const handleLayoutChange = (layout: LayoutOption) => {
+    if (!project) {
+      return;
+    }
+
+    setProject({ ...project, layout });
+  };
+
   const handleExportProject = async () => {
     if (!project) {
       return;
@@ -496,7 +545,7 @@ export default function App() {
       name: imported.name ?? "Importiertes Projekt",
       createdAt: imported.createdAt ?? new Date().toISOString(),
       note: imported.note ?? "",
-      layout: layoutValue,
+      layout: isLayoutOption(imported.layout) ? imported.layout : layoutValue,
       images,
     };
 
@@ -516,6 +565,14 @@ export default function App() {
 
     setIsExportingPdf(true);
     try {
+      const {
+        cardSizeMm,
+        cols: layoutCols,
+        rows: layoutRows,
+        pageWidthMm,
+        pageHeightMm,
+      } = selectedLayout;
+      const cardsPerPage = layoutRows * layoutCols;
       const cardSizePx = mmToPx(cardSizeMm);
 
       const pairedImages = project.images.flatMap((image) => [image, image]);
@@ -523,8 +580,8 @@ export default function App() {
 
       for (let index = 0; index < pairedImages.length; index += cardsPerPage) {
         const page = pdfDoc.addPage([
-          mmToPt(a4WidthMm),
-          mmToPt(a4HeightMm),
+          mmToPt(pageWidthMm),
+          mmToPt(pageHeightMm),
         ]);
         const slice = pairedImages.slice(index, index + cardsPerPage);
 
@@ -911,12 +968,23 @@ export default function App() {
                 <Stack spacing={3}>
                   <Typography variant="h6">PDF</Typography>
                   <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                    <TextField
-                      label="Layout (fix)"
-                      value={`6 Karten (2x3) + Streifen ${stripWidthMm}mm`}
-                      InputProps={{ readOnly: true }}
-                      fullWidth
-                    />
+                    <FormControl fullWidth>
+                      <InputLabel id="layout-label">Layout</InputLabel>
+                      <Select
+                        labelId="layout-label"
+                        label="Layout"
+                        value={project.layout}
+                        onChange={(event) =>
+                          handleLayoutChange(event.target.value as LayoutOption)
+                        }
+                      >
+                        {layoutOptions.map((layoutOption) => (
+                          <MenuItem key={layoutOption} value={layoutOption}>
+                            {layoutConfig[layoutOption].label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
                     <TextField
                       label="Bilder im Projekt"
                       value={project.images.length}
@@ -935,8 +1003,7 @@ export default function App() {
                         : "PDF exportieren"}
                     </Button>
                     <Typography variant="body2" color="text.secondary">
-                      A4 210×297mm · 6×99mm Karten · Streifen 12mm · 300 DPI ·
-                      Schnittlinien bei 99mm/198mm (vertikal) und 99mm (horizontal)
+                      {`A4 ${selectedLayout.pageWidthMm}×${selectedLayout.pageHeightMm}mm · ${selectedLayout.cols}×${selectedLayout.rows} · ${selectedLayout.cardSizeMm}mm · Streifen ${selectedLayout.stripWidthMm}mm · 300 DPI`}
                     </Typography>
                   </Stack>
                   {project.images.length > 0 && (

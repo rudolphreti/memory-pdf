@@ -1,4 +1,4 @@
-export type LayoutOption = 6;
+export type LayoutOption = 6 | 12;
 
 export interface ProjectImage {
   id: string;
