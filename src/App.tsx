@@ -26,7 +26,13 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import NoteAddIcon from "@mui/icons-material/NoteAdd";
 import Cropper from "react-easy-crop";
-import type { ImageCrop, LayoutOption, Project, ProjectImage } from "./types";
+import type {
+  ImageCrop,
+  LayoutOption,
+  PdfTemplateOption,
+  Project,
+  ProjectImage,
+} from "./types";
 import {
   getLastProjectId,
   getMostRecentProject,
@@ -35,6 +41,23 @@ import {
 } from "./db";
 
 const layoutOptions: LayoutOption[] = [4, 6, 8];
+const pdfTemplateOptions: Array<{
+  value: PdfTemplateOption;
+  label: string;
+  details: string;
+}> = [
+  {
+    value: "classic",
+    label: "Szablon podstawowy",
+    details: "Dotychczasowy wariant projektu.",
+  },
+  {
+    value: "a4-landscape-4x3-70mm",
+    label: "A4 poziomo 4×3 (70 mm)",
+    details:
+      "A4 297×210 mm, pola 70×70 mm, wypełnienie 280×210 mm, ścinek 17×210 mm z boku.",
+  },
+];
 const acceptedTypes = ["image/jpeg", "image/png", "image/webp"];
 const steps = ["Bilder", "Zuschneiden", "Layout & PDF"];
 const defaultCrop: ImageCrop = { x: 0, y: 0, zoom: 1, rotation: 0 };
@@ -46,7 +69,15 @@ function createEmptyProject(): Project {
     createdAt: new Date().toISOString(),
     note: "",
     layout: 4,
+    pdfTemplate: "classic",
     images: [],
+  };
+}
+
+function normalizeProject(project: Project): Project {
+  return {
+    ...project,
+    pdfTemplate: project.pdfTemplate ?? "classic",
   };
 }
 
@@ -82,7 +113,7 @@ export default function App() {
         await saveProject(loaded);
       }
 
-      setProject(loaded);
+      setProject(normalizeProject(loaded));
       setIsLoading(false);
     };
 
@@ -595,6 +626,28 @@ export default function App() {
                   <Typography variant="h6">Layout &amp; PDF</Typography>
                   <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                     <FormControl fullWidth>
+                      <InputLabel id="pdf-template-label">
+                        Szablon PDF
+                      </InputLabel>
+                      <Select
+                        labelId="pdf-template-label"
+                        value={project.pdfTemplate}
+                        label="Szablon PDF"
+                        onChange={(event) =>
+                          setProject({
+                            ...project,
+                            pdfTemplate: event.target.value as PdfTemplateOption,
+                          })
+                        }
+                      >
+                        {pdfTemplateOptions.map((option) => (
+                          <MenuItem key={option.value} value={option.value}>
+                            {option.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <FormControl fullWidth>
                       <InputLabel id="layout-label">
                         Layout (Spalten)
                       </InputLabel>
@@ -622,6 +675,13 @@ export default function App() {
                       fullWidth
                     />
                   </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    {
+                      pdfTemplateOptions.find(
+                        (option) => option.value === project.pdfTemplate
+                      )?.details
+                    }
+                  </Typography>
                   <Typography variant="body1" color="text.secondary">
                     PDF-Erstellung folgt in einem späteren Schritt. Der aktuelle
                     Fokus liegt auf der Bildauswahl und dem quadratischen

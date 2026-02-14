@@ -1,4 +1,5 @@
 export type LayoutOption = 4 | 6 | 8;
+export type PdfTemplateOption = "classic" | "a4-landscape-4x3-70mm";
 
 export interface ProjectImage {
   id: string;
@@ -22,5 +23,6 @@ export interface Project {
   createdAt: string;
   note: string;
   layout: LayoutOption;
+  pdfTemplate: PdfTemplateOption;
   images: ProjectImage[];
 }
