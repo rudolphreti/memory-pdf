@@ -41,7 +41,41 @@ import {
   saveProject,
 } from "./db";
 
-const acceptedTypes = ["image/jpeg", "image/png", "image/webp"];
+const acceptedMimeTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/bmp",
+  "image/x-ms-bmp",
+  "image/avif",
+  "image/svg+xml",
+  "image/tiff",
+];
+const acceptedExtensions = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".bmp",
+  ".avif",
+  ".svg",
+  ".tif",
+  ".tiff",
+];
+const extensionToMimeType: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".bmp": "image/bmp",
+  ".avif": "image/avif",
+  ".svg": "image/svg+xml",
+  ".tif": "image/tiff",
+  ".tiff": "image/tiff",
+};
 const steps = ["Bilder", "Zuschneiden", "PDF"];
 const defaultCrop: ImageCrop = { x: 0, y: 0, zoom: 1, rotation: 0 };
 const dpi = 300;
@@ -82,6 +116,28 @@ const layoutOptions = Object.keys(layoutConfig).map((value) =>
 
 function isLayoutOption(value: unknown): value is LayoutOption {
   return layoutOptions.includes(value as LayoutOption);
+}
+
+function getFileExtension(name: string): string {
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex === -1) {
+    return "";
+  }
+
+  return name.slice(dotIndex).toLowerCase();
+}
+
+function normalizeImageType(file: File): string | null {
+  if (acceptedMimeTypes.includes(file.type)) {
+    return file.type;
+  }
+
+  const extension = getFileExtension(file.name);
+  if (!acceptedExtensions.includes(extension)) {
+    return null;
+  }
+
+  return extensionToMimeType[extension] ?? null;
 }
 
 function createEmptyProject(): Project {
@@ -413,16 +469,22 @@ export default function App() {
       return;
     }
 
-    const nextImages: ProjectImage[] = Array.from(files)
-      .filter((file) => acceptedTypes.includes(file.type))
-      .map((file) => ({
+    const nextImages: ProjectImage[] = [];
+    for (const file of Array.from(files)) {
+      const type = normalizeImageType(file);
+      if (!type) {
+        continue;
+      }
+
+      nextImages.push({
         id: crypto.randomUUID(),
         name: file.name,
-        type: file.type,
+        type,
         size: file.size,
         blob: file,
         crop: { ...defaultCrop },
-      }));
+      });
+    }
 
     if (nextImages.length === 0) {
       return;
@@ -743,7 +805,7 @@ export default function App() {
                     hidden
                     type="file"
                     multiple
-                    accept={acceptedTypes.join(",")}
+                    accept={[...acceptedMimeTypes, ...acceptedExtensions].join(",")}
                     onChange={(event) => {
                       handleAddImages(event.target.files);
                       event.currentTarget.value = "";
@@ -751,7 +813,7 @@ export default function App() {
                   />
                 </Button>
                 <Typography variant="body2" color="text.secondary">
-                  Unterstützt: JPG, PNG, WEBP. Bilder werden sofort gespeichert.
+                  Unterstützt: JPG/JPEG, PNG, WEBP, GIF, BMP, AVIF, SVG, TIFF. Bilder werden sofort gespeichert.
                 </Typography>
               </CardActions>
             </Card>
