@@ -408,6 +408,7 @@ function CropTileCard({
             rotation={image.crop?.rotation ?? defaultCrop.rotation}
             aspect={1}
             objectFit="contain"
+            showGrid={false}
             onCropChange={(crop) => handleCropUpdate(image.id, crop)}
             onZoomChange={(zoom) => handleCropUpdate(image.id, { zoom })}
             onRotationChange={(rotation) =>
