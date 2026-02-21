@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   AppBar,
   Box,
@@ -305,6 +312,161 @@ interface ExportedProject {
   note: string;
   layout: LayoutOption;
   images: ExportedProjectImage[];
+}
+
+interface CropTileCardProps {
+  image: ProjectImage;
+  previewUrl: string;
+  handleCropUpdate: (id: string, cropUpdate: Partial<ImageCrop>) => void;
+  handleCropComplete: (id: string, cropAreaPixels: CropAreaPixels) => void;
+  handleRemoveImage: (id: string) => void;
+  setProject: Dispatch<SetStateAction<Project | null>>;
+}
+
+function CropTileCard({
+  image,
+  previewUrl,
+  handleCropUpdate,
+  handleCropComplete,
+  handleRemoveImage,
+  setProject,
+}: CropTileCardProps) {
+  const cropAreaRef = useRef<HTMLDivElement | null>(null);
+  const [cropSize, setCropSize] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
+
+  useEffect(() => {
+    const node = cropAreaRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updateSize = () => {
+      const nextWidth = Math.floor(node.clientWidth);
+      const nextHeight = Math.floor(node.clientHeight);
+      setCropSize((previous) => {
+        if (
+          previous.width === nextWidth &&
+          previous.height === nextHeight
+        ) {
+          return previous;
+        }
+        return { width: nextWidth, height: nextHeight };
+      });
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+    window.addEventListener("resize", updateSize);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, []);
+
+  return (
+    <Card key={image.id} variant="outlined">
+      <Box
+        ref={cropAreaRef}
+        sx={{
+          position: "relative",
+          width: "100%",
+          aspectRatio: "1 / 1",
+          bgcolor: "common.white",
+          overflow: "hidden",
+        }}
+      >
+        <IconButton
+          aria-label="Bild entfernen"
+          onClick={() => handleRemoveImage(image.id)}
+          size="small"
+          sx={{
+            position: "absolute",
+            top: 6,
+            right: 6,
+            zIndex: 2,
+            bgcolor: "rgba(255,255,255,0.9)",
+            "&:hover": { bgcolor: "rgba(255,255,255,1)" },
+          }}
+        >
+          <DeleteIcon fontSize="small" />
+        </IconButton>
+        {cropSize.width > 0 && cropSize.height > 0 && (
+          <Cropper
+            image={previewUrl}
+            crop={{
+              x: image.crop?.x ?? defaultCrop.x,
+              y: image.crop?.y ?? defaultCrop.y,
+            }}
+            cropSize={cropSize}
+            zoom={image.crop?.zoom ?? defaultCrop.zoom}
+            minZoom={0.2}
+            rotation={image.crop?.rotation ?? defaultCrop.rotation}
+            aspect={1}
+            objectFit="contain"
+            onCropChange={(crop) => handleCropUpdate(image.id, crop)}
+            onZoomChange={(zoom) => handleCropUpdate(image.id, { zoom })}
+            onRotationChange={(rotation) =>
+              handleCropUpdate(image.id, { rotation })
+            }
+            onCropComplete={(_, cropAreaPixels) =>
+              handleCropComplete(image.id, cropAreaPixels)
+            }
+            onInteractionStart={() => {
+              setProject((previous) => {
+                if (!previous) {
+                  return previous;
+                }
+
+                return {
+                  ...previous,
+                  images: previous.images.map((currentImage) =>
+                    currentImage.id === image.id
+                      ? {
+                          ...currentImage,
+                          crop: {
+                            ...defaultCrop,
+                            ...currentImage.crop,
+                            zoom: Math.max(
+                              0.2,
+                              currentImage.crop?.zoom ?? defaultCrop.zoom
+                            ),
+                          },
+                        }
+                      : currentImage
+                  ),
+                };
+              });
+            }}
+          />
+        )}
+      </Box>
+      <CardContent sx={{ p: 1 }}>
+        <Typography variant="caption" noWrap display="block">
+          {image.name}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          Rotation ({Math.round(image.crop?.rotation ?? defaultCrop.rotation)}°)
+        </Typography>
+        <Slider
+          size="small"
+          min={-180}
+          max={180}
+          step={1}
+          value={image.crop?.rotation ?? defaultCrop.rotation}
+          onChange={(_, value) =>
+            handleCropUpdate(image.id, {
+              rotation: value as number,
+            })
+          }
+        />
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function App() {
@@ -742,74 +904,15 @@ export default function App() {
                     }}
                   >
                     {project.images.map((image) => (
-                      <Card key={image.id} variant="outlined">
-                        <Box
-                          sx={{
-                            position: "relative",
-                            width: "100%",
-                            aspectRatio: "1 / 1",
-                            bgcolor: "common.white",
-                            overflow: "hidden",
-                          }}
-                        >
-                          <IconButton
-                            aria-label="Bild entfernen"
-                            onClick={() => handleRemoveImage(image.id)}
-                            size="small"
-                            sx={{
-                              position: "absolute",
-                              top: 6,
-                              right: 6,
-                              zIndex: 2,
-                              bgcolor: "rgba(255,255,255,0.9)",
-                              "&:hover": { bgcolor: "rgba(255,255,255,1)" },
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                          <Cropper
-                            image={previewUrls[image.id]}
-                            crop={{
-                              x: image.crop?.x ?? defaultCrop.x,
-                              y: image.crop?.y ?? defaultCrop.y,
-                            }}
-                            zoom={image.crop?.zoom ?? defaultCrop.zoom}
-                            rotation={image.crop?.rotation ?? defaultCrop.rotation}
-                            aspect={1}
-                            objectFit="contain"
-                            onCropChange={(crop) => handleCropUpdate(image.id, crop)}
-                            onZoomChange={(zoom) =>
-                              handleCropUpdate(image.id, { zoom })
-                            }
-                            onRotationChange={(rotation) =>
-                              handleCropUpdate(image.id, { rotation })
-                            }
-                            onCropComplete={(_, cropAreaPixels) =>
-                              handleCropComplete(image.id, cropAreaPixels)
-                            }
-                          />
-                        </Box>
-                        <CardContent sx={{ p: 1 }}>
-                          <Typography variant="caption" noWrap display="block">
-                            {image.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            Rotation ({Math.round(image.crop?.rotation ?? defaultCrop.rotation)}°)
-                          </Typography>
-                          <Slider
-                            size="small"
-                            min={-180}
-                            max={180}
-                            step={1}
-                            value={image.crop?.rotation ?? defaultCrop.rotation}
-                            onChange={(_, value) =>
-                              handleCropUpdate(image.id, {
-                                rotation: value as number,
-                              })
-                            }
-                          />
-                        </CardContent>
-                      </Card>
+                      <CropTileCard
+                        key={image.id}
+                        image={image}
+                        previewUrl={previewUrls[image.id]}
+                        handleCropUpdate={handleCropUpdate}
+                        handleCropComplete={handleCropComplete}
+                        handleRemoveImage={handleRemoveImage}
+                        setProject={setProject}
+                      />
                     ))}
                   </Box>
                 )}
