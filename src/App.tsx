@@ -6,18 +6,14 @@ import {
   Card,
   CardActions,
   CardContent,
-  CardMedia,
   Container,
   FormControl,
-  InputLabel,
   IconButton,
+  InputLabel,
   MenuItem,
   Select,
   Slider,
   Stack,
-  Step,
-  StepLabel,
-  Stepper,
   TextField,
   Toolbar,
   Typography,
@@ -76,20 +72,22 @@ const extensionToMimeType: Record<string, string> = {
   ".tif": "image/tiff",
   ".tiff": "image/tiff",
 };
-const steps = ["Bilder", "Zuschneiden", "PDF"];
 const defaultCrop: ImageCrop = { x: 0, y: 0, zoom: 1, rotation: 0 };
 const dpi = 300;
 const layoutValue: LayoutOption = 6;
 
-const layoutConfig: Record<LayoutOption, {
-  label: string;
-  pageWidthMm: number;
-  pageHeightMm: number;
-  cardSizeMm: number;
-  rows: number;
-  cols: number;
-  stripWidthMm: number;
-}> = {
+const layoutConfig: Record<
+  LayoutOption,
+  {
+    label: string;
+    pageWidthMm: number;
+    pageHeightMm: number;
+    cardSizeMm: number;
+    rows: number;
+    cols: number;
+    stripWidthMm: number;
+  }
+> = {
   6: {
     label: "6 Karten (2x3) + Streifen 12mm",
     pageWidthMm: 210,
@@ -314,8 +312,6 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const previewUrlsRef = useRef<Record<string, string>>({});
-  const [activeStep, setActiveStep] = useState(0);
-  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -382,37 +378,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!project) {
-      return;
-    }
-
-    if (!selectedImageId && project.images.length > 0) {
-      setSelectedImageId(project.images[0].id);
-      return;
-    }
-
-    if (selectedImageId) {
-      const stillExists = project.images.some(
-        (image) => image.id === selectedImageId
-      );
-      if (!stillExists) {
-        setSelectedImageId(project.images[0]?.id ?? null);
-      }
-    }
-  }, [project, selectedImageId]);
-
-  useEffect(() => {
-    if (!project) {
-      return;
-    }
-
-    const maxStep = project.images.length === 0 ? 0 : steps.length - 1;
-    if (activeStep > maxStep) {
-      setActiveStep(maxStep);
-    }
-  }, [project, activeStep]);
-
   const createdAtLabel = useMemo(() => {
     if (!project) {
       return "";
@@ -421,14 +386,6 @@ export default function App() {
     return formatDate(project.createdAt);
   }, [project]);
 
-  const selectedImage = useMemo(() => {
-    if (!project || !selectedImageId) {
-      return null;
-    }
-
-    return project.images.find((image) => image.id === selectedImageId) ?? null;
-  }, [project, selectedImageId]);
-
   const selectedLayout = useMemo(() => {
     if (!project) {
       return layoutConfig[layoutValue];
@@ -436,12 +393,6 @@ export default function App() {
 
     return layoutConfig[project.layout];
   }, [project]);
-
-  const maxStep = project
-    ? project.images.length === 0
-      ? 0
-      : steps.length - 1
-    : 0;
 
   const handleCreateNew = () => {
     const nextProject = createEmptyProject();
@@ -522,20 +473,8 @@ export default function App() {
     });
   };
 
-  const handleCropComplete = (
-    id: string,
-    cropAreaPixels: CropAreaPixels
-  ) => {
+  const handleCropComplete = (id: string, cropAreaPixels: CropAreaPixels) => {
     handleCropUpdate(id, { cropAreaPixels });
-  };
-
-  const handleStepChange = (nextStep: number) => {
-    if (!project) {
-      return;
-    }
-
-    const maxStep = project.images.length === 0 ? 0 : steps.length - 1;
-    setActiveStep(Math.min(Math.max(nextStep, 0), maxStep));
   };
 
   const handleLayoutChange = (layout: LayoutOption) => {
@@ -613,7 +552,6 @@ export default function App() {
 
     await saveProject(restored);
     setProject(restored);
-    setActiveStep(restored.images.length === 0 ? 0 : 1);
 
     if (importInputRef.current) {
       importInputRef.current.value = "";
@@ -641,10 +579,7 @@ export default function App() {
       const pdfDoc = await PDFDocument.create();
 
       for (let index = 0; index < pairedImages.length; index += cardsPerPage) {
-        const page = pdfDoc.addPage([
-          mmToPt(pageWidthMm),
-          mmToPt(pageHeightMm),
-        ]);
+        const page = pdfDoc.addPage([mmToPt(pageWidthMm), mmToPt(pageHeightMm)]);
         const slice = pairedImages.slice(index, index + cardsPerPage);
 
         for (let cardIndex = 0; cardIndex < slice.length; cardIndex += 1) {
@@ -705,18 +640,10 @@ export default function App() {
           >
             Neues Projekt
           </Button>
-          <Button
-            variant="outlined"
-            color="inherit"
-            onClick={handleExportProject}
-          >
+          <Button variant="outlined" color="inherit" onClick={handleExportProject}>
             Export (.json)
           </Button>
-          <Button
-            variant="outlined"
-            color="inherit"
-            component="label"
-          >
+          <Button variant="outlined" color="inherit" component="label">
             Import (.json)
             <input
               ref={importInputRef}
@@ -731,377 +658,197 @@ export default function App() {
         </Toolbar>
       </AppBar>
 
-      <Container sx={{ py: 4 }} maxWidth="lg">
-        <Stack spacing={4}>
+      <Container sx={{ py: 4 }} maxWidth={false}>
+        <Stack spacing={3}>
           <Card variant="outlined">
             <CardContent>
-              <Stepper activeStep={activeStep} alternativeLabel>
-                {steps.map((label) => (
-                  <Step key={label}>
-                    <StepLabel>{label}</StepLabel>
-                  </Step>
-                ))}
-              </Stepper>
+              <Stack spacing={3}>
+                <TextField
+                  label="Projektname"
+                  value={project.name}
+                  onChange={(event) => handleNameChange(event.target.value)}
+                  fullWidth
+                />
+                <TextField
+                  label="Notiz"
+                  value={project.note}
+                  onChange={(event) => handleNoteChange(event.target.value)}
+                  multiline
+                  minRows={2}
+                  fullWidth
+                />
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                  <TextField
+                    label="Erstellt am"
+                    value={createdAtLabel}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Bildanzahl"
+                    value={project.images.length}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                  />
+                </Stack>
+              </Stack>
             </CardContent>
-            <CardActions sx={{ px: 3, pb: 2, justifyContent: "space-between" }}>
-              <Button
-                variant="outlined"
-                onClick={() => handleStepChange(activeStep - 1)}
-                disabled={activeStep === 0}
-              >
-                Zurück
-              </Button>
+            <CardActions sx={{ px: 2, pb: 2 }}>
               <Button
                 variant="contained"
-                onClick={() => handleStepChange(activeStep + 1)}
-                disabled={activeStep >= maxStep}
+                component="label"
+                startIcon={<AddPhotoAlternateIcon />}
               >
-                Weiter
+                Bilder hinzufügen
+                <input
+                  hidden
+                  type="file"
+                  multiple
+                  accept={[...acceptedMimeTypes, ...acceptedExtensions].join(",")}
+                  onChange={(event) => {
+                    handleAddImages(event.target.files);
+                    event.currentTarget.value = "";
+                  }}
+                />
               </Button>
+              <Typography variant="body2" color="text.secondary">
+                Unterstützt: JPG/JPEG, PNG, WEBP, GIF, BMP, AVIF, SVG, TIFF.
+              </Typography>
             </CardActions>
           </Card>
 
-          {activeStep === 0 && (
-            <Card variant="outlined">
-              <CardContent>
-                <Stack spacing={3}>
-                  <TextField
-                    label="Projektname"
-                    value={project.name}
-                    onChange={(event) => handleNameChange(event.target.value)}
-                    fullWidth
-                  />
-                  <TextField
-                    label="Notiz"
-                    value={project.note}
-                    onChange={(event) => handleNoteChange(event.target.value)}
-                    multiline
-                    minRows={3}
-                    fullWidth
-                  />
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                    <TextField
-                      label="Erstellt am"
-                      value={createdAtLabel}
-                      InputProps={{ readOnly: true }}
-                      fullWidth
-                    />
-                    <TextField
-                      label="Bildanzahl"
-                      value={project.images.length}
-                      InputProps={{ readOnly: true }}
-                      fullWidth
-                    />
-                  </Stack>
-                </Stack>
-              </CardContent>
-              <CardActions sx={{ px: 2, pb: 2 }}>
-                <Button
-                  variant="contained"
-                  component="label"
-                  startIcon={<AddPhotoAlternateIcon />}
-                >
-                  Bilder hinzufügen
-                  <input
-                    hidden
-                    type="file"
-                    multiple
-                    accept={[...acceptedMimeTypes, ...acceptedExtensions].join(",")}
-                    onChange={(event) => {
-                      handleAddImages(event.target.files);
-                      event.currentTarget.value = "";
-                    }}
-                  />
-                </Button>
-                <Typography variant="body2" color="text.secondary">
-                  Unterstützt: JPG/JPEG, PNG, WEBP, GIF, BMP, AVIF, SVG, TIFF. Bilder werden sofort gespeichert.
+          <Card variant="outlined">
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6">
+                  Zuschneidbare Kacheln ({project.images.length})
                 </Typography>
-              </CardActions>
-            </Card>
-          )}
-
-          {activeStep === 0 && (
-            <Card variant="outlined">
-              <CardContent>
-                <Stack spacing={2}>
-                  <Typography variant="h6">
-                    Bildübersicht ({project.images.length})
+                {project.images.length === 0 ? (
+                  <Typography variant="body1" color="text.secondary">
+                    Noch keine Bilder. Füge oben Dateien hinzu.
                   </Typography>
-                  {project.images.length === 0 ? (
-                    <Typography variant="body1" color="text.secondary">
-                      Noch keine Bilder. Füge oben Dateien hinzu.
-                    </Typography>
-                  ) : (
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                        gap: 2,
-                      }}
-                    >
-                      {project.images.map((image) => (
-                        <Card key={image.id} variant="outlined">
-                          <CardMedia
-                            component="img"
-                            height="140"
-                            image={previewUrls[image.id]}
-                            alt={image.name}
-                            sx={{ objectFit: "cover" }}
-                          />
-                          <CardContent>
-                            <Typography variant="subtitle2" noWrap>
-                              {image.name}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {(image.size / 1024).toFixed(1)} KB
-                            </Typography>
-                          </CardContent>
-                          <CardActions sx={{ justifyContent: "flex-end" }}>
-                            <IconButton
-                              aria-label="Bild entfernen"
-                              onClick={() => handleRemoveImage(image.id)}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </CardActions>
-                        </Card>
-                      ))}
-                    </Box>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-          )}
-
-          {activeStep === 1 && (
-            <Card variant="outlined">
-              <CardContent>
-                <Stack spacing={3}>
-                  <Stack
-                    direction={{ xs: "column", md: "row" }}
-                    spacing={3}
-                    alignItems="stretch"
+                ) : (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "repeat(2, minmax(0, 1fr))",
+                        sm: "repeat(3, minmax(0, 1fr))",
+                        md: "repeat(4, minmax(0, 1fr))",
+                        lg: "repeat(6, minmax(0, 1fr))",
+                        xl: "repeat(8, minmax(0, 1fr))",
+                      },
+                      gap: 1,
+                    }}
                   >
-                    <Stack spacing={2} sx={{ minWidth: 240 }}>
-                      <Typography variant="h6">Bilder auswählen</Typography>
-                      {project.images.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">
-                          Füge zuerst Bilder hinzu.
-                        </Typography>
-                      ) : (
-                        <Stack spacing={1}>
-                          {project.images.map((image) => (
-                            <Button
-                              key={image.id}
-                              variant={
-                                image.id === selectedImageId
-                                  ? "contained"
-                                  : "outlined"
-                              }
-                              onClick={() => setSelectedImageId(image.id)}
-                              sx={{ justifyContent: "flex-start", gap: 1 }}
-                            >
-                              <Box
-                                component="img"
-                                src={previewUrls[image.id]}
-                                alt={image.name}
-                                sx={{
-                                  width: 48,
-                                  height: 48,
-                                  objectFit: "cover",
-                                  borderRadius: 1,
-                                }}
-                              />
-                              <Typography variant="body2" noWrap>
-                                {image.name}
-                              </Typography>
-                            </Button>
-                          ))}
-                        </Stack>
-                      )}
-                    </Stack>
-
-                    <Stack spacing={2} sx={{ flex: 1 }}>
-                      <Typography variant="h6">Zuschneiden (Quadrat)</Typography>
-                      {selectedImage ? (
-                        <>
-                          <Box
-                            sx={{
-                              position: "relative",
-                              width: "100%",
-                              maxWidth: 520,
-                              aspectRatio: "1 / 1",
-                              bgcolor: "grey.900",
-                              borderRadius: 2,
-                              overflow: "hidden",
-                            }}
-                          >
-                            <Cropper
-                              image={previewUrls[selectedImage.id]}
-                              crop={{
-                                x: selectedImage.crop?.x ?? defaultCrop.x,
-                                y: selectedImage.crop?.y ?? defaultCrop.y,
-                              }}
-                              zoom={selectedImage.crop?.zoom ?? defaultCrop.zoom}
-                              rotation={
-                                selectedImage.crop?.rotation ??
-                                defaultCrop.rotation
-                              }
-                              aspect={1}
-                              onCropChange={(crop) =>
-                                handleCropUpdate(selectedImage.id, crop)
-                              }
-                              onZoomChange={(zoom) =>
-                                handleCropUpdate(selectedImage.id, { zoom })
-                              }
-                              onRotationChange={(rotation) =>
-                                handleCropUpdate(selectedImage.id, { rotation })
-                              }
-                              onCropComplete={(_, cropAreaPixels) =>
-                                handleCropComplete(
-                                  selectedImage.id,
-                                  cropAreaPixels
-                                )
-                              }
-                            />
-                          </Box>
-                          <Stack spacing={2} sx={{ maxWidth: 520 }}>
-                            <Box>
-                              <Typography gutterBottom>
-                                Zoom (
-                                {(
-                                  selectedImage.crop?.zoom ?? defaultCrop.zoom
-                                ).toFixed(2)}
-                                x)
-                              </Typography>
-                              <Slider
-                                min={1}
-                                max={3}
-                                step={0.05}
-                                value={
-                                  selectedImage.crop?.zoom ?? defaultCrop.zoom
-                                }
-                                onChange={(_, value) =>
-                                  handleCropUpdate(selectedImage.id, {
-                                    zoom: value as number,
-                                  })
-                                }
-                              />
-                            </Box>
-                            <Box>
-                              <Typography gutterBottom>
-                                Rotation (
-                                {selectedImage.crop?.rotation ??
-                                  defaultCrop.rotation}
-                                °)
-                              </Typography>
-                              <Slider
-                                min={-180}
-                                max={180}
-                                step={1}
-                                value={
-                                  selectedImage.crop?.rotation ??
-                                  defaultCrop.rotation
-                                }
-                                onChange={(_, value) =>
-                                  handleCropUpdate(selectedImage.id, {
-                                    rotation: value as number,
-                                  })
-                                }
-                              />
-                            </Box>
-                          </Stack>
-                        </>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          Wähle links ein Bild aus, um den Zuschnitt zu
-                          bearbeiten.
-                        </Typography>
-                      )}
-                    </Stack>
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-          )}
-
-          {activeStep === 2 && (
-            <Card variant="outlined">
-              <CardContent>
-                <Stack spacing={3}>
-                  <Typography variant="h6">PDF</Typography>
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                    <FormControl fullWidth>
-                      <InputLabel id="layout-label">Layout</InputLabel>
-                      <Select
-                        labelId="layout-label"
-                        label="Layout"
-                        value={project.layout}
-                        onChange={(event) =>
-                          handleLayoutChange(event.target.value as LayoutOption)
-                        }
-                      >
-                        {layoutOptions.map((layoutOption) => (
-                          <MenuItem key={layoutOption} value={layoutOption}>
-                            {layoutConfig[layoutOption].label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    <TextField
-                      label="Bilder im Projekt"
-                      value={project.images.length}
-                      InputProps={{ readOnly: true }}
-                      fullWidth
-                    />
-                  </Stack>
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                    <Button
-                      variant="contained"
-                      onClick={handleExportPdf}
-                      disabled={project.images.length === 0 || isExportingPdf}
-                    >
-                      {isExportingPdf
-                        ? "PDF wird erzeugt..."
-                        : "PDF exportieren"}
-                    </Button>
-                    <Typography variant="body2" color="text.secondary">
-                      {`A4 ${selectedLayout.pageWidthMm}×${selectedLayout.pageHeightMm}mm · ${selectedLayout.cols}×${selectedLayout.rows} · ${selectedLayout.cardSizeMm}mm · Streifen ${selectedLayout.stripWidthMm}mm · 300 DPI`}
-                    </Typography>
-                  </Stack>
-                  {project.images.length > 0 && (
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                        gap: 2,
-                      }}
-                    >
-                      {project.images.map((image) => (
-                        <Card key={image.id} variant="outlined">
-                          <CardMedia
-                            component="img"
-                            height="120"
+                    {project.images.map((image) => (
+                      <Card key={image.id} variant="outlined">
+                        <Box
+                          sx={{
+                            position: "relative",
+                            width: "100%",
+                            aspectRatio: "1 / 1",
+                            bgcolor: "grey.900",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <Cropper
                             image={previewUrls[image.id]}
-                            alt={image.name}
-                            sx={{ objectFit: "cover" }}
+                            crop={{
+                              x: image.crop?.x ?? defaultCrop.x,
+                              y: image.crop?.y ?? defaultCrop.y,
+                            }}
+                            zoom={image.crop?.zoom ?? defaultCrop.zoom}
+                            rotation={image.crop?.rotation ?? defaultCrop.rotation}
+                            aspect={1}
+                            onCropChange={(crop) => handleCropUpdate(image.id, crop)}
+                            onZoomChange={(zoom) =>
+                              handleCropUpdate(image.id, { zoom })
+                            }
+                            onRotationChange={(rotation) =>
+                              handleCropUpdate(image.id, { rotation })
+                            }
+                            onCropComplete={(_, cropAreaPixels) =>
+                              handleCropComplete(image.id, cropAreaPixels)
+                            }
                           />
-                          <CardContent>
-                            <Typography variant="subtitle2" noWrap>
-                              {image.name}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              Zuschnitt gespeichert
-                            </Typography>
-                          </CardContent>
-                        </Card>
+                        </Box>
+                        <CardContent sx={{ p: 1 }}>
+                          <Typography variant="caption" noWrap display="block">
+                            {image.name}
+                          </Typography>
+                          <Slider
+                            size="small"
+                            min={1}
+                            max={3}
+                            step={0.05}
+                            value={image.crop?.zoom ?? defaultCrop.zoom}
+                            onChange={(_, value) =>
+                              handleCropUpdate(image.id, { zoom: value as number })
+                            }
+                          />
+                        </CardContent>
+                        <CardActions sx={{ px: 1, pt: 0, pb: 1, justifyContent: "flex-end" }}>
+                          <IconButton
+                            aria-label="Bild entfernen"
+                            onClick={() => handleRemoveImage(image.id)}
+                            size="small"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </CardActions>
+                      </Card>
+                    ))}
+                  </Box>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card variant="outlined">
+            <CardContent>
+              <Stack spacing={3}>
+                <Typography variant="h6">PDF</Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                  <FormControl fullWidth>
+                    <InputLabel id="layout-label">Layout</InputLabel>
+                    <Select
+                      labelId="layout-label"
+                      label="Layout"
+                      value={project.layout}
+                      onChange={(event) =>
+                        handleLayoutChange(event.target.value as LayoutOption)
+                      }
+                    >
+                      {layoutOptions.map((layoutOption) => (
+                        <MenuItem key={layoutOption} value={layoutOption}>
+                          {layoutConfig[layoutOption].label}
+                        </MenuItem>
                       ))}
-                    </Box>
-                  )}
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label="Bilder im Projekt"
+                    value={project.images.length}
+                    InputProps={{ readOnly: true }}
+                    fullWidth
+                  />
                 </Stack>
-              </CardContent>
-            </Card>
-          )}
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                  <Button
+                    variant="contained"
+                    onClick={handleExportPdf}
+                    disabled={project.images.length === 0 || isExportingPdf}
+                  >
+                    {isExportingPdf ? "PDF wird erzeugt..." : "PDF exportieren"}
+                  </Button>
+                  <Typography variant="body2" color="text.secondary">
+                    {`A4 ${selectedLayout.pageWidthMm}×${selectedLayout.pageHeightMm}mm · ${selectedLayout.cols}×${selectedLayout.rows} · ${selectedLayout.cardSizeMm}mm · Streifen ${selectedLayout.stripWidthMm}mm · 300 DPI`}
+                  </Typography>
+                </Stack>
+              </Stack>
+            </CardContent>
+          </Card>
         </Stack>
       </Container>
     </Box>
