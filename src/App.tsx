@@ -748,10 +748,25 @@ export default function App() {
                             position: "relative",
                             width: "100%",
                             aspectRatio: "1 / 1",
-                            bgcolor: "grey.900",
+                            bgcolor: "common.white",
                             overflow: "hidden",
                           }}
                         >
+                          <IconButton
+                            aria-label="Bild entfernen"
+                            onClick={() => handleRemoveImage(image.id)}
+                            size="small"
+                            sx={{
+                              position: "absolute",
+                              top: 6,
+                              right: 6,
+                              zIndex: 2,
+                              bgcolor: "rgba(255,255,255,0.9)",
+                              "&:hover": { bgcolor: "rgba(255,255,255,1)" },
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
                           <Cropper
                             image={previewUrls[image.id]}
                             crop={{
@@ -761,6 +776,7 @@ export default function App() {
                             zoom={image.crop?.zoom ?? defaultCrop.zoom}
                             rotation={image.crop?.rotation ?? defaultCrop.rotation}
                             aspect={1}
+                            objectFit="contain"
                             onCropChange={(crop) => handleCropUpdate(image.id, crop)}
                             onZoomChange={(zoom) =>
                               handleCropUpdate(image.id, { zoom })
@@ -777,26 +793,22 @@ export default function App() {
                           <Typography variant="caption" noWrap display="block">
                             {image.name}
                           </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Rotation ({Math.round(image.crop?.rotation ?? defaultCrop.rotation)}°)
+                          </Typography>
                           <Slider
                             size="small"
-                            min={1}
-                            max={3}
-                            step={0.05}
-                            value={image.crop?.zoom ?? defaultCrop.zoom}
+                            min={-180}
+                            max={180}
+                            step={1}
+                            value={image.crop?.rotation ?? defaultCrop.rotation}
                             onChange={(_, value) =>
-                              handleCropUpdate(image.id, { zoom: value as number })
+                              handleCropUpdate(image.id, {
+                                rotation: value as number,
+                              })
                             }
                           />
                         </CardContent>
-                        <CardActions sx={{ px: 1, pt: 0, pb: 1, justifyContent: "flex-end" }}>
-                          <IconButton
-                            aria-label="Bild entfernen"
-                            onClick={() => handleRemoveImage(image.id)}
-                            size="small"
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </CardActions>
                       </Card>
                     ))}
                   </Box>
