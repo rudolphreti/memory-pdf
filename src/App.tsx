@@ -669,7 +669,8 @@ export default function App() {
       }
 
       const pdfBytes = await pdfDoc.save();
-      const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" });
+      const pdfBuffer = Uint8Array.from(pdfBytes).buffer;
+      const pdfBlob = new Blob([pdfBuffer], { type: "application/pdf" });
       const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement("a");
       link.href = url;
