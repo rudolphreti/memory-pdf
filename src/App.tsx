@@ -210,12 +210,12 @@ async function renderCroppedImage(
   const cropAreaPixels =
     image.crop?.cropAreaPixels ??
     (() => {
-      const minSize = Math.min(htmlImage.width, htmlImage.height);
+      const maxSize = Math.max(htmlImage.width, htmlImage.height);
       return {
-        x: (htmlImage.width - minSize) / 2,
-        y: (htmlImage.height - minSize) / 2,
-        width: minSize,
-        height: minSize,
+        x: (htmlImage.width - maxSize) / 2,
+        y: (htmlImage.height - maxSize) / 2,
+        width: maxSize,
+        height: maxSize,
       } satisfies CropAreaPixels;
     })();
 
