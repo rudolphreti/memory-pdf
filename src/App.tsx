@@ -248,17 +248,46 @@ async function renderCroppedImage(
     throw new Error("Canvas context ist nicht verfügbar.");
   }
 
-  outputCtx.drawImage(
-    canvas,
-    cropAreaPixels.x,
-    cropAreaPixels.y,
-    cropAreaPixels.width,
-    cropAreaPixels.height,
+  outputCtx.fillStyle = "white";
+  outputCtx.fillRect(0, 0, outputSizePx, outputSizePx);
+
+  const sourceX = cropAreaPixels.x;
+  const sourceY = cropAreaPixels.y;
+  const sourceWidth = cropAreaPixels.width;
+  const sourceHeight = cropAreaPixels.height;
+
+  const intersectionX = Math.max(0, sourceX);
+  const intersectionY = Math.max(0, sourceY);
+  const intersectionWidth = Math.max(
     0,
-    0,
-    outputSizePx,
-    outputSizePx
+    Math.min(sourceX + sourceWidth, bBoxWidth) - intersectionX
   );
+  const intersectionHeight = Math.max(
+    0,
+    Math.min(sourceY + sourceHeight, bBoxHeight) - intersectionY
+  );
+
+  if (intersectionWidth > 0 && intersectionHeight > 0) {
+    const scaleX = outputSizePx / sourceWidth;
+    const scaleY = outputSizePx / sourceHeight;
+
+    const destinationX = (intersectionX - sourceX) * scaleX;
+    const destinationY = (intersectionY - sourceY) * scaleY;
+    const destinationWidth = intersectionWidth * scaleX;
+    const destinationHeight = intersectionHeight * scaleY;
+
+    outputCtx.drawImage(
+      canvas,
+      intersectionX,
+      intersectionY,
+      intersectionWidth,
+      intersectionHeight,
+      destinationX,
+      destinationY,
+      destinationWidth,
+      destinationHeight
+    );
+  }
 
   return new Promise((resolve, reject) => {
     outputCanvas.toBlob((blob) => {
@@ -403,13 +432,13 @@ function CropTileCard({
               y: image.crop?.y ?? defaultCrop.y,
             }}
             cropSize={cropSize}
-            zoom={Math.max(1, image.crop?.zoom ?? defaultCrop.zoom)}
-            minZoom={1}
+            zoom={image.crop?.zoom ?? defaultCrop.zoom}
+            minZoom={0.1}
             rotation={image.crop?.rotation ?? defaultCrop.rotation}
             aspect={1}
-            objectFit="cover"
+            objectFit="contain"
             zoomSpeed={0.1}
-            restrictPosition
+            restrictPosition={false}
             showGrid={false}
             onCropChange={(crop) => handleCropUpdate(image.id, crop)}
             onZoomChange={(zoom) => handleCropUpdate(image.id, { zoom })}
@@ -435,7 +464,7 @@ function CropTileCard({
                             ...defaultCrop,
                             ...currentImage.crop,
                             zoom: Math.max(
-                              1,
+                              0.1,
                               currentImage.crop?.zoom ?? defaultCrop.zoom
                             ),
                           },
