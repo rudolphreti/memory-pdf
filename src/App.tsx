@@ -403,8 +403,8 @@ function CropTileCard({
               y: image.crop?.y ?? defaultCrop.y,
             }}
             cropSize={cropSize}
-            zoom={image.crop?.zoom ?? defaultCrop.zoom}
-            minZoom={0.2}
+            zoom={Math.max(1, image.crop?.zoom ?? defaultCrop.zoom)}
+            minZoom={1}
             rotation={image.crop?.rotation ?? defaultCrop.rotation}
             aspect={1}
             objectFit="cover"
@@ -435,7 +435,7 @@ function CropTileCard({
                             ...defaultCrop,
                             ...currentImage.crop,
                             zoom: Math.max(
-                              0.2,
+                              1,
                               currentImage.crop?.zoom ?? defaultCrop.zoom
                             ),
                           },
