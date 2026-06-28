@@ -24,11 +24,17 @@ export interface CropAreaPixels {
   y: number;
 }
 
+export interface CropMarkSettings {
+  enabled: boolean;
+  intensity: number;
+}
+
 export interface Project {
   id: string;
   name: string;
   createdAt: string;
   note: string;
   layout: LayoutOption;
+  cropMarks: CropMarkSettings;
   images: ProjectImage[];
 }

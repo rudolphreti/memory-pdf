@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@emotion/react": "^11.11.4",
