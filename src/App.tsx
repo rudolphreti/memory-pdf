@@ -15,12 +15,14 @@ import {
   CardContent,
   Container,
   FormControl,
+  FormControlLabel,
   IconButton,
   InputLabel,
   MenuItem,
   Select,
   Slider,
   Stack,
+  Switch,
   TextField,
   Toolbar,
   Typography,
@@ -32,6 +34,7 @@ import Cropper from "react-easy-crop";
 import { PDFDocument } from "pdf-lib";
 import type {
   CropAreaPixels,
+  CropMarkSettings,
   ImageCrop,
   LayoutOption,
   Project,
@@ -43,6 +46,11 @@ import {
   getProject,
   saveProject,
 } from "./db";
+import {
+  defaultCropMarkOptions,
+  drawCornerCropMarks,
+  mmToPt,
+} from "./pdfCropMarks";
 
 const acceptedMimeTypes = [
   "image/jpeg",
@@ -82,6 +90,10 @@ const extensionToMimeType: Record<string, string> = {
 const defaultCrop: ImageCrop = { x: 0, y: 0, zoom: 1, rotation: 0 };
 const dpi = 300;
 const layoutValue: LayoutOption = 6;
+const defaultCropMarks: CropMarkSettings = {
+  enabled: defaultCropMarkOptions.enabled,
+  intensity: defaultCropMarkOptions.intensity,
+};
 
 const layoutConfig: Record<
   LayoutOption,
@@ -145,6 +157,13 @@ function normalizeImageType(file: File): string | null {
   return extensionToMimeType[extension] ?? null;
 }
 
+function normalizeProject(project: Project): Project {
+  return {
+    ...project,
+    cropMarks: { ...defaultCropMarks, ...project.cropMarks },
+  };
+}
+
 function createEmptyProject(): Project {
   return {
     id: crypto.randomUUID(),
@@ -152,6 +171,7 @@ function createEmptyProject(): Project {
     createdAt: new Date().toISOString(),
     note: "",
     layout: layoutValue,
+    cropMarks: { ...defaultCropMarks },
     images: [],
   };
 }
@@ -170,9 +190,6 @@ function mmToPx(mm: number): number {
   return Math.round((mm / 25.4) * dpi);
 }
 
-function mmToPt(mm: number): number {
-  return (mm / 25.4) * 72;
-}
 
 function createImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -340,6 +357,7 @@ interface ExportedProject {
   createdAt: string;
   note: string;
   layout: LayoutOption;
+  cropMarks?: CropMarkSettings;
   images: ExportedProjectImage[];
 }
 
@@ -523,7 +541,7 @@ export default function App() {
         await saveProject(loaded);
       }
 
-      setProject(loaded);
+      setProject(normalizeProject(loaded));
       setIsLoading(false);
     };
 
@@ -679,6 +697,17 @@ export default function App() {
     setProject({ ...project, layout });
   };
 
+  const handleCropMarksChange = (cropMarks: Partial<CropMarkSettings>) => {
+    if (!project) {
+      return;
+    }
+
+    setProject({
+      ...project,
+      cropMarks: { ...defaultCropMarks, ...project.cropMarks, ...cropMarks },
+    });
+  };
+
   const handleExportProject = async () => {
     if (!project) {
       return;
@@ -701,7 +730,8 @@ export default function App() {
       name: project.name,
       createdAt: project.createdAt,
       note: project.note,
-      layout: layoutValue,
+      layout: project.layout,
+      cropMarks: project.cropMarks,
       images,
     };
 
@@ -735,14 +765,15 @@ export default function App() {
       };
     });
 
-    const restored: Project = {
+    const restored: Project = normalizeProject({
       id: imported.id ?? crypto.randomUUID(),
       name: imported.name ?? "Importiertes Projekt",
       createdAt: imported.createdAt ?? new Date().toISOString(),
       note: imported.note ?? "",
       layout: isLayoutOption(imported.layout) ? imported.layout : layoutValue,
+      cropMarks: { ...defaultCropMarks, ...imported.cropMarks },
       images,
-    };
+    });
 
     await saveProject(restored);
     setProject(restored);
@@ -793,6 +824,11 @@ export default function App() {
             y: mmToPt(yMm),
             width: mmToPt(cardSizeMm),
             height: mmToPt(cardSizeMm),
+          });
+
+          drawCornerCropMarks(page, xMm, yMm, cardSizeMm, {
+            enabled: project.cropMarks.enabled,
+            intensity: project.cropMarks.intensity,
           });
         }
       }
@@ -980,6 +1016,35 @@ export default function App() {
                     InputProps={{ readOnly: true }}
                     fullWidth
                   />
+                </Stack>
+                <Stack spacing={2}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={project.cropMarks.enabled}
+                        onChange={(event) =>
+                          handleCropMarksChange({ enabled: event.target.checked })
+                        }
+                      />
+                    }
+                    label="Delikatne linie cięcia na rogach kafelków"
+                  />
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Intensywność linii cięcia
+                    </Typography>
+                    <Slider
+                      min={0.65}
+                      max={0.98}
+                      step={0.01}
+                      value={project.cropMarks.intensity}
+                      disabled={!project.cropMarks.enabled}
+                      valueLabelDisplay="auto"
+                      onChange={(_, value) =>
+                        handleCropMarksChange({ intensity: value as number })
+                      }
+                    />
+                  </Box>
                 </Stack>
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                   <Button
